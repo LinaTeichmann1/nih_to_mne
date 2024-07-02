@@ -264,7 +264,7 @@ def anonymize_finalize(meg_fname):
 def process_meg_bids(input_path=None, subject_in=None, bids_id=None,
                      bids_dir=None, session=1, 
                      anonymize=False, tmpdir=None, ignore_eroom=None, 
-                     crop_trailing_zeros=False):
+                     crop_trailing_zeros=False, event_id=False, event_id_range=None):
     '''
     Process the MEG component of the data into bids.
     Calls sessdir2taskrundict to get the task IDs and sort according to run #
@@ -290,6 +290,10 @@ def process_meg_bids(input_path=None, subject_in=None, bids_id=None,
         data at the end.  This will determine the stop time and crop out the rest.
         Leaving the zero data at the end will cause some issues in the data 
         processing.
+    event_id: BOOL
+        mne-bids requires to define the event_id dictionary, otherwise the event_ids are generated arbitrarily.
+    event_id_range: int
+        defines the number of unique event types in the data (this should match the number of unique annotations)
 
     '''
     if bids_dir==None:
@@ -342,7 +346,12 @@ def process_meg_bids(input_path=None, subject_in=None, bids_id=None,
                 if len(run)==1: run='0'+run
                 bids_path = BIDSPath(subject=bids_id, session=ses, task=task,
                                       run=run, root=bids_dir, suffix='meg')
-                write_raw_bids(raw, bids_path, overwrite=True)
+                if event_id:
+                  event_id_dict
+                  event_id_dict = {ev_labels+1: f"stim{ev_labels+1}" for ev_labels in range(event_id_range)}
+                  write_raw_bids(raw, bids_path, event_id=event_id_dict, overwrite=True)
+                else:
+                  write_raw_bids(raw, bids_path, overwrite=True)
                 logger.info(f'Successful MNE BIDS: {meg_fname} to {bids_path}')
             except BaseException as e:
                 logger.error(f'MEG BIDS PROCESSING: {meg_fname}')
@@ -735,6 +744,24 @@ def main():
                         meg analysis (watershed/bem/src/fwd)''', 
                         action='store_true'
                         )
+
+    group5 = parser.add_argument_group('Event IDs')
+  
+    group5.add_argument('-event_id',
+                        help='''mne-bids will generate arbitrary event codes,\n
+                        unless this is set to True.''',
+                        type = bool,
+                        default=False,
+                        required=False
+                        )
+    group5.add_argument('-event_id_range',
+                        help='''Number of unique event types in annotations.''',
+                        type = int,
+                        default=2,
+                        required=False
+                        )
+  
+
     
     
     args=parser.parse_args()
@@ -814,6 +841,8 @@ def main():
                                  anonymize=args.anonymize,
                                  ignore_eroom=args.ignore_eroom,
                                  crop_trailing_zeros=args.autocrop_zeros,
+                                 event_id=args.event_id,
+                                 event_id_range=args.event_id_range,
                                  **kwargs)
     
     #
